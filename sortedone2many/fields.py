@@ -13,9 +13,20 @@ from django.utils.functional import curry
 from django.utils.translation import ugettext_lazy as _
 
 from sortedm2m.fields import SortedManyToManyField, SORT_VALUE_FIELD_NAME
-from sortedm2m.compat import get_foreignkey_field_kwargs
 
 from .forms import SortedMultipleChoiceWithDisabledField
+
+
+def get_foreignkey_field_kwargs(field):
+    # Django 1.5 support.
+    if django.VERSION < (1, 6):
+        return {}
+    else:
+        return {
+            'db_tablespace': field.db_tablespace,
+            'db_constraint': get_rel(field).db_constraint,
+            'on_delete': models.CASCADE,
+        }
 
 
 class OneToManyRel(ManyToManyRel):
@@ -266,7 +277,7 @@ class SortedOneToManyField(SortedManyToManyField):
 
         # !! changed from ForeignKey to OneToOneField
         field = models.OneToOneField(to_model, related_name='%s+' % name,
-                                     **get_foreignkey_field_kwargs(self))
+                                     **get_foreignkey_field_kwargs())
 
         return field_name, field
 
