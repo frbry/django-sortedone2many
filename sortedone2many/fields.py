@@ -13,9 +13,20 @@ from django.utils.functional import curry
 from django.utils.translation import ugettext_lazy as _
 
 from sortedm2m.fields import SortedManyToManyField, SORT_VALUE_FIELD_NAME
-from sortedm2m.compat import get_foreignkey_field_kwargs
 
 from .forms import SortedMultipleChoiceWithDisabledField
+
+
+def get_foreignkey_field_kwargs(field):
+    # Django 1.5 support.
+    if django.VERSION < (1, 6):
+        return {}
+    else:
+        return {
+            'db_tablespace': field.db_tablespace,
+            'db_constraint': get_rel(field).db_constraint,
+            'on_delete': models.CASCADE,
+        }
 
 
 class OneToManyRel(ManyToManyRel):
@@ -97,8 +108,8 @@ class OneToManyRelatedObjectDescriptor(ManyRelatedObjectsDescriptor):
             return rel_obj
 
     def __set__(self, instance, value):
-        if not self.related.field.rel.through._meta.auto_created:
-            opts = self.related.field.rel.through._meta
+        if not self.related.field.remote_field.through._meta.auto_created:
+            opts = self.related.field.remote_field.through._meta
             raise AttributeError(
                 "Cannot set values on a ManyToManyField which specifies an "
                 "intermediary model. Use %s.%s's Manager instead." % (opts.app_label, opts.object_name)
@@ -259,14 +270,14 @@ class SortedOneToManyField(SortedManyToManyField):
 
         to_model, to_object_name = self.get_rel_to_model_and_object_name(klass)
 
-        if self.rel.to == RECURSIVE_RELATIONSHIP_CONSTANT or to_object_name == klass._meta.object_name:
+        if self.remote_field.to == RECURSIVE_RELATIONSHIP_CONSTANT or to_object_name == klass._meta.object_name:
             field_name = 'to_%s' % to_object_name.lower()
         else:
             field_name = to_object_name.lower()
 
         # !! changed from ForeignKey to OneToOneField
         field = models.OneToOneField(to_model, related_name='%s+' % name,
-                                     **get_foreignkey_field_kwargs(self))
+                                     **get_foreignkey_field_kwargs())
 
         return field_name, field
 
@@ -274,7 +285,7 @@ class SortedOneToManyField(SortedManyToManyField):
         # Internal M2Ms (i.e., those with a related name ending with '+')
         # and swapped models don't get a related descriptor.
         # !! changed to `OneToManyRelatedObjectDescriptor`
-        if not self.rel.is_hidden() and not related.related_model._meta.swapped:
+        if not self.remote_field.is_hidden() and not related.related_model._meta.swapped:
             setattr(cls, related.get_accessor_name(), OneToManyRelatedObjectDescriptor(related))
 
         # Set up the accessors for the column names on the m2m table

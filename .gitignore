@@ -27,3 +27,5 @@ migrations
 */migrations
 test_app/migrations_auth
 .spyderproject
+
+.idea
